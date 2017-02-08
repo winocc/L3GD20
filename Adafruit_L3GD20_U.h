@@ -29,7 +29,7 @@
 /*=========================================================================
     I2C ADDRESS/BITS AND SETTINGS
     -----------------------------------------------------------------------*/
-    #define L3GD20_ADDRESS           (0x6B)        // 1101011
+    #define L3GD20_ADDRESS           (0x6A)        // 1101010
     #define L3GD20_POLL_TIMEOUT      (100)         // Maximum number of read attempts
     #define L3GD20_ID                (0xD4)
     #define L3GD20H_ID               (0xD7)
