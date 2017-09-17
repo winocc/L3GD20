@@ -87,6 +87,7 @@ byte Adafruit_L3GD20_Unified::read8(byte reg)
 Adafruit_L3GD20_Unified::Adafruit_L3GD20_Unified(int32_t sensorID) {
   _sensorID = sensorID;
   _autoRangeEnabled = false;
+  _gyroState = GYRO_STATE_POWERDOWN;
 }
 
 /***************************************************************************
@@ -203,8 +204,164 @@ bool Adafruit_L3GD20_Unified::begin(gyroRange_t rng)
   /* Nothing to do ... keep default values */
   /* ------------------------------------------------------------------ */
 
+  _readyTime = millis() + L3GD20_POWERDOWN_TO_NORMAL_DURATION;
+  _gyroState = GYRO_STATE_NORMAL;
+
   return true;
 }
+
+/**************************************************************************/
+/*!
+    @brief  Set the chip in sleep mode (2mA)
+*/
+/**************************************************************************/
+bool Adafruit_L3GD20_Unified::sleep(void)
+{
+  uint8_t reg;
+
+  /* Enable I2C */
+  Wire.begin();
+
+  /* Set CTRL_REG1 (0x20)
+   ====================================================================
+   BIT  Symbol    Description                                   Default
+   ---  ------    --------------------------------------------- -------
+   7-6  DR1/0     Output data rate                                   00
+   5-4  BW1/0     Bandwidth selection                                00
+     3  PD        0 = Power-down mode, 1 = normal/sleep mode          0
+     2  ZEN       Z-axis enable (0 = disabled, 1 = enabled)           1
+     1  YEN       Y-axis enable (0 = disabled, 1 = enabled)           1
+     0  XEN       X-axis enable (0 = disabled, 1 = enabled)           1 */
+
+  /* clear PD to activate power-down mode */
+  reg = read8(GYRO_REGISTER_CTRL_REG1);
+  reg &= 0xF8;
+  write8(GYRO_REGISTER_CTRL_REG1, reg);
+  _gyroState = GYRO_STATE_SLEEP;
+
+  return true;
+}
+
+
+/**************************************************************************/
+/*!
+    @brief  Set the chip in power-down mode (5uA)
+*/
+/**************************************************************************/
+bool Adafruit_L3GD20_Unified::powerDown(void)
+{
+  uint8_t reg;
+
+  /* Enable I2C */
+  Wire.begin();
+
+  /* Set CTRL_REG1 (0x20)
+   ====================================================================
+   BIT  Symbol    Description                                   Default
+   ---  ------    --------------------------------------------- -------
+   7-6  DR1/0     Output data rate                                   00
+   5-4  BW1/0     Bandwidth selection                                00
+     3  PD        0 = Power-down mode, 1 = normal/sleep mode          0
+     2  ZEN       Z-axis enable (0 = disabled, 1 = enabled)           1
+     1  YEN       Y-axis enable (0 = disabled, 1 = enabled)           1
+     0  XEN       X-axis enable (0 = disabled, 1 = enabled)           1 */
+
+  /* clear PD to activate power-down mode */
+  reg = read8(GYRO_REGISTER_CTRL_REG1);
+  reg &= 0xF7;
+  write8(GYRO_REGISTER_CTRL_REG1, reg);
+  _gyroState = GYRO_STATE_POWERDOWN;
+
+  return true;
+}
+
+
+/**************************************************************************/
+/*!
+    @brief  Set the chip in normal mode after sleeping or power-down
+*/
+/**************************************************************************/
+bool Adafruit_L3GD20_Unified::wake(void)
+{
+
+  /* Set CTRL_REG1 (0x20)
+   ====================================================================
+   BIT  Symbol    Description                                   Default
+   ---  ------    --------------------------------------------- -------
+   7-6  DR1/0     Output data rate                                   00
+   5-4  BW1/0     Bandwidth selection                                00
+     3  PD        0 = Power-down mode, 1 = normal/sleep mode          0
+     2  ZEN       Z-axis enable (0 = disabled, 1 = enabled)           1
+     1  YEN       Y-axis enable (0 = disabled, 1 = enabled)           1
+     0  XEN       X-axis enable (0 = disabled, 1 = enabled)           1 */
+
+  write8(GYRO_REGISTER_CTRL_REG1, 0x0F);
+  write8(GYRO_REGISTER_CTRL_REG2, 0x00);
+  write8(GYRO_REGISTER_CTRL_REG3, 0x00);
+
+  switch(_range)
+  {
+    case GYRO_RANGE_250DPS:
+      write8(GYRO_REGISTER_CTRL_REG4, 0x00);
+      break;
+    case GYRO_RANGE_500DPS:
+      write8(GYRO_REGISTER_CTRL_REG4, 0x10);
+      break;
+    case GYRO_RANGE_2000DPS:
+      write8(GYRO_REGISTER_CTRL_REG4, 0x20);
+      break;
+  }
+
+  /* Set CTRL_REG5 (0x24)
+   ====================================================================
+   BIT  Symbol    Description                                   Default
+   ---  ------    --------------------------------------------- -------
+     7  BOOT      Reboot memory content (0=normal, 1=reboot)          0
+     6  FIFO_EN   FIFO enable (0=FIFO disable, 1=enable)              0
+     4  HPen      High-pass filter enable (0=disable,1=enable)        0
+   3-2  INT1_SEL  INT1 Selection config                              00
+   1-0  OUT_SEL   Out selection config                               00 */
+
+  write8(GYRO_REGISTER_CTRL_REG5, 0x00);
+
+  if ( _gyroState == GYRO_STATE_SLEEP )
+  {
+    _readyTime = millis() + L3GD20_SLEEP_TO_NORMAL_DURATION;
+  }
+  else
+  {
+    _readyTime = millis() + L3GD20_POWERDOWN_TO_NORMAL_DURATION;
+  }
+  _gyroState = GYRO_STATE_NORMAL;
+
+  return true;
+}
+
+
+/**************************************************************************/
+/*!
+    @brief  Return true if the gyro is available after the boot or a wake request
+*/
+/**************************************************************************/
+bool Adafruit_L3GD20_Unified::isAvailable(void)
+{
+  if ( _gyroState != GYRO_STATE_NORMAL ) return false;
+
+  if ( millis() > _readyTime ) return true;
+  else return false;
+}
+
+
+/**************************************************************************/
+/*!
+    @brief  Return the state of the gyro (NORMAL, SLEEP or POWERDOWN)
+*/
+/**************************************************************************/
+gyroStates_t Adafruit_L3GD20_Unified::getState(void)
+{
+  return _gyroState;
+}
+
 
 /**************************************************************************/
 /*!
