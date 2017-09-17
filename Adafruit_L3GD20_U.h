@@ -37,7 +37,19 @@
     #define GYRO_SENSITIVITY_250DPS  (0.00875F)
     #define GYRO_SENSITIVITY_500DPS  (0.0175F)
     #define GYRO_SENSITIVITY_2000DPS (0.070F)
+    #define L3GD20_SLEEP_TO_NORMAL_DURATION     (30)   // Number of milliseconds between a wake request from sleep and the first data
+    #define L3GD20_POWERDOWN_TO_NORMAL_DURATION (100)   // Number of milliseconds between a wake request from power-down and the first data
 /*=========================================================================*/
+
+/*=========================================================================
+    GYRO STATES
+    -----------------------------------------------------------------------*/
+    typedef enum
+    {
+      GYRO_STATE_POWERDOWN            = 0,
+      GYRO_STATE_SLEEP                = 1,
+      GYRO_STATE_NORMAL               = 2
+    } gyroStates_t;
 
 /*=========================================================================
     REGISTERS
@@ -100,19 +112,26 @@ class Adafruit_L3GD20_Unified : public Adafruit_Sensor
   public:
     Adafruit_L3GD20_Unified(int32_t sensorID = -1);
 
-    bool begin           ( gyroRange_t rng = GYRO_RANGE_250DPS );
-    void enableAutoRange ( bool enabled );
-    bool getEvent        ( sensors_event_t* );
-    void getSensor       ( sensor_t* );
+    bool begin            ( gyroRange_t rng = GYRO_RANGE_250DPS );
+    bool sleep            ( void );
+    bool wake             ( void );
+    bool powerDown        ( void );
+    bool isAvailable      ( void );
+    gyroStates_t getState ( void );
+    void enableAutoRange  ( bool enabled );
+    bool getEvent         ( sensors_event_t* );
+    void getSensor        ( sensor_t* );
 
     gyroRawData_t raw; /* Raw values from last sensor read */
 
   private:
-    void        write8  ( byte reg, byte value );
-    byte        read8   ( byte reg );
-    gyroRange_t _range;
-    int32_t     _sensorID;
-    bool        _autoRangeEnabled;
+    void         write8  ( byte reg, byte value );
+    byte         read8   ( byte reg );
+    gyroRange_t  _range;
+    int32_t      _sensorID;
+    bool         _autoRangeEnabled;
+    uint32_t     _readyTime;
+    gyroStates_t _gyroState;
 };
 
 /* Non Unified (old) driver for compatibility reasons */
@@ -132,8 +151,8 @@ class Adafruit_L3GD20
     Adafruit_L3GD20(int8_t cs, int8_t mosi, int8_t miso, int8_t clk);
     Adafruit_L3GD20(void);
 
-    bool begin ( l3gd20Range_t rng=GYRO_RANGE_250DPS, byte addr=L3GD20_ADDRESS );
-    void read  ( void );
+    bool begin     ( l3gd20Range_t rng=GYRO_RANGE_250DPS, byte addr=L3GD20_ADDRESS );
+    void read      ( void );
 
     l3gd20Data data;    // Last read will be available here
 
